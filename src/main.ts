@@ -25,7 +25,7 @@ camera.lookAt(0, 0, 0);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 document.getElementById('canvas-container')!.appendChild(renderer.domElement);
 
 // Lighting

@@ -9,12 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "three": "^r128",
-    "cannon-es": "^0.20.0"
+    "cannon-es": "^0.20.0",
+    "three": "latest"
   },
   "devDependencies": {
+    "@types/node": "^20.10.5",
+    "terser": "^5.46.1",
     "typescript": "^5.3.3",
-    "vite": "^5.0.8",
-    "@types/node": "^20.10.5"
+    "vite": "^5.0.8"
   }
 }
