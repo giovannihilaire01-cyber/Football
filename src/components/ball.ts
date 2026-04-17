@@ -24,8 +24,8 @@ export function createBall(): BallData {
   const body = new CANNON.Body({
     mass: 0.43,
     shape: shape,
-    linearDamping: 0.3,
-    angularDamping: 0.3,
+    linearDamping: 0.02, // Reduced from 0.3 (was 6-30x too high - ball was stopping too fast)
+    angularDamping: 0.08, // Reduced from 0.3 (ball should spin longer)
   });
   body.position.set(0, 1, 0);
 

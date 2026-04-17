@@ -122,7 +122,7 @@ export class GameRules {
     const teams = this.gameState.getTeams();
 
     let closestPlayer: Player | null = null;
-    let closestDistance = 4; // Increased possession range
+    let closestDistance = 1.2; // Reduced from 4 (realistic touch distance ~1.2m max)
 
     for (const team of teams) {
       for (const player of team.players) {
@@ -143,51 +143,19 @@ export class GameRules {
   }
 
   private updateBallControl(): void {
-    const ballBody = this.gameState.getBallBody();
-    const ballPos = this.gameState.getBallPosition();
-    const teams = this.gameState.getTeams();
-
-    let controllingPlayer: Player | null = null;
-    for (const team of teams) {
-      for (const player of team.players) {
-        if (player.hasControl) {
-          controllingPlayer = player;
-          break;
-        }
-      }
-      if (controllingPlayer) break;
-    }
-
-    if (controllingPlayer && ballBody) {
-      // Stronger attachment when player has control
-      const ballToPlayer = new CANNON.Vec3(
-        controllingPlayer.position.x - ballPos.x,
-        controllingPlayer.position.z < 0 ? 0.3 : 0, // Slight upward lift
-        controllingPlayer.position.z - ballPos.z
-      );
-
-      const distance = ballToPlayer.length();
-
-      if (distance > 0.1) {
-        ballToPlayer.normalize();
-
-        // Apply drag force proportional to distance
-        if (distance < 1.5) {
-          ballToPlayer.scale(35, ballToPlayer); // Strong drag when very close
-        } else if (distance < 3) {
-          ballToPlayer.scale(20, ballToPlayer); // Medium drag
-        } else {
-          ballToPlayer.scale(10, ballToPlayer); // Weak drag when far
-        }
-
-        ballBody.applyForce(ballToPlayer, ballBody.position);
-      }
-
-      // Keep ball on ground (slight downward force)
-      if (ballPos.y > 0.5) {
-        ballBody.applyForce(new CANNON.Vec3(0, -5, 0), ballBody.position);
-      }
-    }
+    // REMOVED: Artificial ball drag forces violated physics laws
+    // Previously applied 10-35 N synthetic drag that overrode realistic physics
+    //
+    // Physics-accurate solution:
+    // - Ball naturally follows from physics simulation
+    // - Contact friction from player-ball collision provides realistic control
+    // - Gravity naturally keeps ball on ground (no -5N artificial force needed)
+    // - Ball momentum is conserved (no artificial drag removing energy)
+    //
+    // With reduced ball damping (0.02), physics simulation is now realistic:
+    // - Ball rolls naturally
+    // - Player can affect ball through proper physics contact
+    // - No violations of conservation laws
   }
 
   private updateGoals(): void {
@@ -259,10 +227,10 @@ export class GameRules {
     // Normalize direction and apply power
     const normalizedDir = direction.clone();
     normalizedDir.normalize();
-    normalizedDir.scale(power * 60, normalizedDir);
+    normalizedDir.scale(power * 30, normalizedDir); // Scale factor for realistic impulse (changed from 60)
 
-    // Apply force and impulse for immediate effect
-    ballBody.applyForce(normalizedDir, ballBody.position);
+    // Apply ONLY impulse for instantaneous kick (removed applyForce which violated momentum conservation)
+    // Impulse: J = m * Δv, so velocity change is impulse / mass
     ballBody.applyImpulse(normalizedDir, ballBody.position);
 
     this.kickCooldown = 0.3;

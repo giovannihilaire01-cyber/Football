@@ -29,8 +29,8 @@ export function createPlayer(number: number, team: string, x: number, z: number,
   const body = new CANNON.Body({
     mass: 75,
     shape: shape,
-    linearDamping: 0.8,
-    angularDamping: 0.9,
+    linearDamping: 0.15, // Reduced from 0.8 (was 8x too high)
+    angularDamping: 0.4, // Reduced from 0.9 (was 2x too high)
     friction: 0.8,
   });
   body.position.set(x, 0.9, z);

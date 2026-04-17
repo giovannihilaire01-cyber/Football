@@ -9,7 +9,7 @@ export class AIController {
   private ballPosition: THREE.Vector3;
   private gameRules: any;
   private physicsWorld: PhysicsWorld | null = null;
-  private maxSpeed = 18;
+  private maxSpeed = 9.5; // Reduced from 18 m/s (was 64.8 km/h, elite footballers peak at ~10-11 m/s)
   private maxForce = 100;
   private updateCounter = 0;
   private decisionInterval = 15;
@@ -243,16 +243,23 @@ export class AIController {
   }
 
   private limitSpeed(player: Player): void {
-    const currentSpeed = new THREE.Vector3(
+    const velocity = new THREE.Vector3(
       player.body.velocity.x,
       0,
       player.body.velocity.z
-    ).length();
+    );
+    const currentSpeed = velocity.length();
 
+    // Realistic speed limiting using gradual damping (not hard clipping)
+    // This prevents unrealistic instant velocity reversal
     if (currentSpeed > this.maxSpeed) {
-      const ratio = this.maxSpeed / currentSpeed;
-      player.body.velocity.x *= ratio;
-      player.body.velocity.z *= ratio;
+      // Gradual slowdown factor based on excess speed
+      // As player exceeds maxSpeed, they experience increasing drag
+      const excessSpeed = currentSpeed - this.maxSpeed;
+      const dragFactor = Math.max(0.85, 1 - excessSpeed / (this.maxSpeed * 2));
+
+      player.body.velocity.x *= dragFactor;
+      player.body.velocity.z *= dragFactor;
     }
   }
 
