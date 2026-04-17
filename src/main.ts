@@ -3,6 +3,7 @@ import * as CANNON from 'cannon-es';
 import { createField } from './components/field';
 import { createBall } from './components/ball';
 import { createTeam } from './components/team';
+import { createReferee } from './components/referee';
 import { GameState } from './systems/gameState';
 import { PhysicsWorld } from './systems/physics';
 import { GameRules } from './systems/gameRules';
@@ -66,6 +67,11 @@ ballData.mesh.castShadow = true;
 scene.add(ballData.mesh);
 gamePhysics.addBody(ballData.body);
 gameState.setBall(ballData.mesh.position, ballData.body);
+
+// Create referee
+const refereeData = createReferee();
+refereeData.mesh.castShadow = true;
+scene.add(refereeData.mesh);
 
 // Create teams
 const teamA = createTeam('A', -50, new THREE.Color(0xff0000));
@@ -132,6 +138,14 @@ const gameLoop = () => {
         ballMesh.quaternion.copy(ballBody.quaternion);
       }
     }
+
+    // Move referee to follow ball
+    const ballPos = gameState.getBallPosition();
+    refereeData.mesh.position.set(
+      ballPos.x + 3,
+      0,
+      ballPos.z + 5
+    );
 
     // Update game rules
     gameRules.update(deltaTime);

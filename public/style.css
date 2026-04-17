@@ -39,6 +39,13 @@ body {
   opacity: 0.9;
 }
 
+#game-status {
+  font-size: 16px;
+  margin-top: 10px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
 #controls-panel {
   position: absolute;
   bottom: 20px;

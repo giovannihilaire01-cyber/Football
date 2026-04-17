@@ -16,7 +16,8 @@ export function updateHUD(gameState: GameState): void {
   if (timeEl) {
     const minutes = Math.floor(gameState.getMatchTime() / 60);
     const seconds = Math.floor(gameState.getMatchTime() % 60);
-    timeEl.textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
+    const timeDisplay = minutes >= 45 ? `45+${Math.floor((gameState.getMatchTime() - 2700) / 60)}` : `${minutes}`;
+    timeEl.textContent = `${timeDisplay}:${String(seconds).padStart(2, '0')}`;
   }
 
   // Update player info
@@ -28,6 +29,14 @@ export function updateHUD(gameState: GameState): void {
     } else {
       playerInfoEl.textContent = '';
     }
+  }
+
+  // Update game status indicator
+  const statusEl = document.getElementById('game-status');
+  if (statusEl) {
+    const status = gameState.getGameStatus();
+    statusEl.textContent = status === 'playing' ? '● LIVE' : '⏸ PAUSED';
+    statusEl.style.color = status === 'playing' ? '#00ff00' : '#ffaa00';
   }
 }
 

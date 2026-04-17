@@ -98,5 +98,68 @@ export function createField(): THREE.Mesh[] {
   rightBar.position.set(60, 2.44, 0);
   meshes.push(rightBar);
 
+  // Stadium stands (bleachers)
+  const standMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
+
+  // Create simple stand structure along each side
+  const standWidth = 120;
+  const standHeight = 15;
+  const standDepth = 8;
+
+  // Long side stands (front and back)
+  for (let z of [-50, 50]) {
+    const standGeometry = new THREE.BoxGeometry(standWidth, standHeight, standDepth);
+    const stand = new THREE.Mesh(standGeometry, standMaterial);
+    stand.position.set(0, 7, z);
+    stand.castShadow = true;
+    stand.receiveShadow = true;
+    meshes.push(stand);
+  }
+
+  // Goal line stands (left and right)
+  for (let x of [-70, 70]) {
+    const standGeometry = new THREE.BoxGeometry(standDepth, standHeight, 80);
+    const stand = new THREE.Mesh(standGeometry, standMaterial);
+    stand.position.set(x, 7, 0);
+    stand.castShadow = true;
+    stand.receiveShadow = true;
+    meshes.push(stand);
+  }
+
+  // Add crowd spectators (simple dots on stands)
+  const spectatorGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+  const spectatorMaterials = [
+    new THREE.MeshStandardMaterial({ color: 0xff0000 }), // Team A
+    new THREE.MeshStandardMaterial({ color: 0x0000ff }), // Team B
+    new THREE.MeshStandardMaterial({ color: 0xffff00 }), // Neutral
+  ];
+
+  // Add spectators in stands
+  const spectatorPositions = [
+    { x: -45, z: -45, material: 0 }, { x: 0, z: -45, material: 1 }, { x: 45, z: -45, material: 0 },
+    { x: -45, z: 45, material: 0 }, { x: 0, z: 45, material: 1 }, { x: 45, z: 45, material: 0 },
+    { x: -65, z: -20, material: 2 }, { x: -65, z: 0, material: 2 }, { x: -65, z: 20, material: 2 },
+    { x: 65, z: -20, material: 2 }, { x: 65, z: 0, material: 2 }, { x: 65, z: 20, material: 2 },
+  ];
+
+  for (const pos of spectatorPositions) {
+    const spectator = new THREE.Mesh(spectatorGeometry, spectatorMaterials[pos.material]);
+    spectator.position.set(pos.x, 12, pos.z);
+    spectator.castShadow = true;
+    meshes.push(spectator);
+
+    // Add more spectators nearby
+    for (let i = 0; i < 3; i++) {
+      const offset = new THREE.Mesh(spectatorGeometry, spectatorMaterials[pos.material]);
+      offset.position.set(
+        pos.x + (Math.random() - 0.5) * 6,
+        12 + (Math.random() - 0.5) * 2,
+        pos.z + (Math.random() - 0.5) * 6
+      );
+      offset.castShadow = true;
+      meshes.push(offset);
+    }
+  }
+
   return meshes;
 }
