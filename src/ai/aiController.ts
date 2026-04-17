@@ -10,10 +10,12 @@ export class AIController {
   private gameRules: any;
   private physicsWorld: PhysicsWorld | null = null;
   private maxSpeed = 18;
-  private maxForce = 100; // Reduced from 250 for realistic movement
+  private maxForce = 100;
   private updateCounter = 0;
   private decisionInterval = 15;
   private playerDecisions: Map<Player, { target: THREE.Vector3; action: string }> = new Map();
+  private tacticalMode: 'defensive' | 'balanced' | 'attacking' = 'balanced';
+  private defensiveLineX: number = 0;
 
   constructor(team: Team, gameRules?: any) {
     this.team = team;
@@ -30,6 +32,10 @@ export class AIController {
     this.gameRules = gameRules || this.gameRules;
     this.updateCounter++;
 
+    // Adjust tactics based on match situation
+    this.updateTactics(allTeams);
+    this.updateDefensiveLine(allTeams);
+
     for (const player of this.team.players) {
       // Periodic decision making
       if (this.updateCounter % this.decisionInterval === 0) {
@@ -37,6 +43,49 @@ export class AIController {
       }
 
       this.updatePlayerMovement(player, allTeams);
+    }
+  }
+
+  private updateTactics(allTeams: Team[]): void {
+    // Calculate possession indicator
+    let teamHasPossession = false;
+    for (const player of this.team.players) {
+      if (player.hasControl) {
+        teamHasPossession = true;
+        break;
+      }
+    }
+
+    const scoreIndex = allTeams.findIndex(t => t.side === this.team.side);
+    const ourScore = allTeams[scoreIndex]?.score || 0;
+    const oppScore = allTeams[1 - scoreIndex]?.score || 0;
+
+    // Adjust tactics based on possession and score
+    if (teamHasPossession && ourScore <= oppScore) {
+      this.tacticalMode = 'attacking'; // Attack when losing or drawing
+    } else if (!teamHasPossession && ourScore < oppScore) {
+      this.tacticalMode = 'attacking'; // Pressing when behind
+    } else if (!teamHasPossession && ourScore > oppScore) {
+      this.tacticalMode = 'defensive'; // Defend lead
+    } else {
+      this.tacticalMode = 'balanced'; // Default balanced play
+    }
+  }
+
+  private updateDefensiveLine(allTeams: Team[]): void {
+    // Update defensive line position based on ball and tactics
+    const ballX = this.ballPosition.x;
+    const directionSign = this.team.side === 'A' ? 1 : -1;
+
+    if (this.tacticalMode === 'defensive') {
+      // Defensive position: deeper
+      this.defensiveLineX = -35 * directionSign;
+    } else if (this.tacticalMode === 'attacking') {
+      // Attacking position: higher press
+      this.defensiveLineX = -15 * directionSign;
+    } else {
+      // Balanced position
+      this.defensiveLineX = -25 * directionSign;
     }
   }
 
@@ -104,11 +153,17 @@ export class AIController {
       const ballDist = this.ballPosition.distanceTo(player.position);
       const isOpponentBall = this.isOpponentControllingBall(allTeams);
 
-      if (ballDist < 25) {
+      if (player.number === 1) {
+        // Goalkeeper - different logic
+        const target = new THREE.Vector3(player.team === 'A' ? -55 : 55, 0, 0);
+        this.playerDecisions.set(player, { target, action: 'position' });
+        player.targetPosition.copy(target);
+      } else if (ballDist < 30) {
         if (isOpponentBall) {
-          // DEFEND: Close down attacker
+          // DEFEND: Close down attacker based on tactical mode
+          const aggressiveness = this.tacticalMode === 'attacking' ? 8 : 3;
           const target = this.ballPosition.clone();
-          target.x -= 3 * (player.team === 'A' ? 1 : -1);
+          target.x -= aggressiveness * (player.team === 'A' ? 1 : -1);
           this.playerDecisions.set(player, { target, action: 'defend' });
           player.targetPosition.copy(target);
         } else {
@@ -122,8 +177,15 @@ export class AIController {
           player.targetPosition.copy(supportOffset);
         }
       } else {
-        // FAR: Return to formation
-        const target = this.getFormationPosition(player);
+        // FAR: Return to formation or defensive line
+        let target: THREE.Vector3;
+        if (isOpponentBall && player.number >= 2 && player.number <= 5) {
+          // Defenders maintain defensive line
+          target = this.getDefensiveLinePosition(player);
+        } else {
+          // Others return to formation
+          target = this.getFormationPosition(player);
+        }
         this.playerDecisions.set(player, { target, action: 'formation' });
         player.targetPosition.copy(target);
       }
@@ -252,5 +314,21 @@ export class AIController {
 
     const pos = positions[player.number] || [0, 0];
     return new THREE.Vector3(pos[0], 0, pos[1]);
+  }
+
+  private getDefensiveLinePosition(player: Player): THREE.Vector3 {
+    // Position defender on defensive line based on their assigned zone
+    const sign = this.team.side === 'A' ? 1 : -1;
+    const zoneSpacing = 9;
+
+    const defenserPositions: { [key: number]: number } = {
+      2: -zoneSpacing * 2,
+      3: -zoneSpacing,
+      4: zoneSpacing,
+      5: zoneSpacing * 2,
+    };
+
+    const z = defenserPositions[player.number] || 0;
+    return new THREE.Vector3(this.defensiveLineX, 0, z);
   }
 }
