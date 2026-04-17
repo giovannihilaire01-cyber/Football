@@ -6,66 +6,120 @@ import * as CANNON from 'cannon-es';
 export class AIController {
   private team: Team;
   private ballPosition: THREE.Vector3;
+  private gameRules: any; // Reference to game rules for kicks
   private maxSpeed = 18;
   private maxForce = 250;
   private updateCounter = 0;
-  private decisionInterval = 10; // Update decisions every 10 frames
+  private decisionInterval = 15; // Update decisions every 15 frames
+  private playerDecisions: Map<Player, { target: THREE.Vector3; action: string }> = new Map();
 
-  constructor(team: Team) {
+  constructor(team: Team, gameRules?: any) {
     this.team = team;
     this.ballPosition = new THREE.Vector3();
+    this.gameRules = gameRules;
   }
 
-  update(ballPosition: THREE.Vector3, allTeams: Team[]): void {
+  update(ballPosition: THREE.Vector3, allTeams: Team[], gameRules?: any): void {
     this.ballPosition = ballPosition.clone();
+    this.gameRules = gameRules || this.gameRules;
     this.updateCounter++;
 
     for (const player of this.team.players) {
       // Periodic decision making
       if (this.updateCounter % this.decisionInterval === 0) {
-        this.updatePlayerGoal(player, allTeams);
+        this.makeDecision(player, allTeams);
       }
 
       this.updatePlayerMovement(player, allTeams);
     }
   }
 
-  private updatePlayerGoal(player: Player, allTeams: Team[]): void {
+  private makeDecision(player: Player, allTeams: Team[]): void {
     if (player.number === 1) {
       // Goalkeeper - stay in goal area
-      player.targetPosition.set(player.team === 'A' ? -55 : 55, 0, 0);
+      const target = new THREE.Vector3(player.team === 'A' ? -55 : 55, 0, 0);
+      this.playerDecisions.set(player, { target, action: 'position' });
+      player.targetPosition.copy(target);
       return;
     }
 
     if (player.hasControl) {
-      // Dribble toward goal
-      const directionTowardGoal = player.team === 'A' ? 1 : -1;
-      player.targetPosition.set(50 * directionTowardGoal, 0, 0);
+      // HAS BALL - Decide: Pass or Shoot?
+      const shouldShoot = this.gameRules?.shouldShoot?.(player) || false;
+
+      if (shouldShoot && Math.random() < 0.4) {
+        // TRY TO SHOOT
+        const goalX = player.team === 'A' ? 60 : -60;
+        const shotDirection = new CANNON.Vec3(
+          goalX - player.position.x,
+          0,
+          0 - player.position.z
+        );
+        shotDirection.normalize();
+
+        const shotPower = 0.6 + Math.random() * 0.4;
+        if (this.gameRules?.kickBall) {
+          this.gameRules.kickBall(player, shotDirection, shotPower);
+        }
+
+        this.playerDecisions.set(player, { target: new THREE.Vector3(goalX, 0, 0), action: 'shoot' });
+      } else {
+        // TRY TO PASS
+        const passTarget = this.gameRules?.findPassTarget?.(player);
+
+        if (passTarget && Math.random() < 0.5) {
+          // Execute pass
+          const passDirection = new CANNON.Vec3(
+            passTarget.position.x - player.position.x,
+            0,
+            passTarget.position.z - player.position.z
+          );
+          passDirection.normalize();
+
+          const passPower = 0.4 + Math.random() * 0.3;
+          if (this.gameRules?.kickBall) {
+            this.gameRules.kickBall(player, passDirection, passPower);
+          }
+
+          this.playerDecisions.set(player, {
+            target: passTarget.position.clone(),
+            action: 'pass'
+          });
+        } else {
+          // Dribble toward goal
+          const directionTowardGoal = player.team === 'A' ? 1 : -1;
+          const target = new THREE.Vector3(40 * directionTowardGoal, 0, 0);
+          this.playerDecisions.set(player, { target, action: 'dribble' });
+          player.targetPosition.copy(target);
+        }
+      }
     } else {
-      // Off-ball positioning
+      // NO BALL - Decide: Support or Defend?
       const ballDist = this.ballPosition.distanceTo(player.position);
-      const ballX = this.ballPosition.x;
-      const ballZ = this.ballPosition.z;
-      const directionTowardGoal = player.team === 'A' ? 1 : -1;
+      const isOpponentBall = this.isOpponentControllingBall(allTeams);
 
       if (ballDist < 25) {
-        // Nearby: Get in position to support or defend
-        if (this.isOpponentControllingBall(allTeams)) {
-          // Defend: Close down the player with the ball
-          player.targetPosition.copy(this.ballPosition);
-          player.targetPosition.x -= 5 * directionTowardGoal; // Ahead of ball
+        if (isOpponentBall) {
+          // DEFEND: Close down attacker
+          const target = this.ballPosition.clone();
+          target.x -= 3 * (player.team === 'A' ? 1 : -1);
+          this.playerDecisions.set(player, { target, action: 'defend' });
+          player.targetPosition.copy(target);
         } else {
-          // Support: Get in passing lane
+          // SUPPORT: Get ready for pass
           const supportOffset = new THREE.Vector3(
-            ballX + (10 * directionTowardGoal),
+            this.ballPosition.x + (8 * (player.team === 'A' ? 1 : -1)),
             0,
-            ballZ + (Math.random() - 0.5) * 20
+            this.ballPosition.z + (Math.random() - 0.5) * 20
           );
+          this.playerDecisions.set(player, { target: supportOffset, action: 'support' });
           player.targetPosition.copy(supportOffset);
         }
       } else {
-        // Far away: Return to formation
-        player.targetPosition.copy(this.getFormationPosition(player));
+        // FAR: Return to formation
+        const target = this.getFormationPosition(player);
+        this.playerDecisions.set(player, { target, action: 'formation' });
+        player.targetPosition.copy(target);
       }
     }
   }
@@ -82,12 +136,14 @@ export class AIController {
     if (distanceToTarget > 0.5) {
       direction.normalize();
 
-      // Apply force proportional to distance
+      // Force multiplier based on situation
       let forceMultiplier = 1;
       if (player.hasControl) {
-        forceMultiplier = 1.5; // More aggressive when has ball
+        forceMultiplier = 1.3; // Dribbling
+      } else if (this.playerDecisions.get(player)?.action === 'defend') {
+        forceMultiplier = 1.5; // Urgent defense
       } else if (distanceToTarget < 3) {
-        forceMultiplier = 0.4; // Slow down when close to target
+        forceMultiplier = 0.5; // Slow down when close
       }
 
       const force = direction.multiplyScalar(this.maxForce * forceMultiplier);
@@ -96,15 +152,15 @@ export class AIController {
         player.body.position
       );
     } else {
-      // Apply friction when close to target
-      player.body.velocity.x *= 0.92;
-      player.body.velocity.z *= 0.92;
+      // Light damping near target
+      player.body.velocity.x *= 0.93;
+      player.body.velocity.z *= 0.93;
     }
 
-    // Limit maximum speed
+    // Speed limit
     this.limitSpeed(player);
 
-    // Avoid other players (collision avoidance)
+    // Collision avoidance
     this.avoidCollisions(player, allTeams);
   }
 
@@ -116,34 +172,33 @@ export class AIController {
     ).length();
 
     if (currentSpeed > this.maxSpeed) {
-      const speedRatio = this.maxSpeed / currentSpeed;
-      player.body.velocity.x *= speedRatio;
-      player.body.velocity.z *= speedRatio;
+      const ratio = this.maxSpeed / currentSpeed;
+      player.body.velocity.x *= ratio;
+      player.body.velocity.z *= ratio;
     }
   }
 
   private avoidCollisions(player: Player, allTeams: Team[]): void {
-    const avoidanceRadius = 3;
-    const avoidanceForce = 100;
+    const avoidanceRadius = 2.5;
+    const avoidanceForce = 120;
 
     for (const team of allTeams) {
-      for (const otherPlayer of team.players) {
-        if (otherPlayer === player) continue;
+      for (const other of team.players) {
+        if (other === player) continue;
 
-        const toOther = new THREE.Vector3(
-          otherPlayer.position.x - player.position.x,
+        const separation = new THREE.Vector3(
+          player.position.x - other.position.x,
           0,
-          otherPlayer.position.z - player.position.z
+          player.position.z - other.position.z
         );
 
-        const distance = toOther.length();
+        const distance = separation.length();
 
-        if (distance < avoidanceRadius && distance > 0) {
-          // Apply repulsive force
-          toOther.normalize();
-          toOther.multiplyScalar(-avoidanceForce);
+        if (distance < avoidanceRadius && distance > 0.1) {
+          separation.normalize();
+          separation.multiplyScalar(avoidanceForce);
           player.body.applyForce(
-            new CANNON.Vec3(toOther.x, 0, toOther.z),
+            new CANNON.Vec3(separation.x, 0, separation.z),
             player.body.position
           );
         }
@@ -163,20 +218,20 @@ export class AIController {
 
   private getFormationPosition(player: Player): THREE.Vector3 {
     const baseX = this.team.side === 'A' ? -25 : 25;
-    const directionSign = this.team.side === 'A' ? 1 : -1;
+    const sign = this.team.side === 'A' ? 1 : -1;
 
     const positions: { [key: number]: [number, number] } = {
-      1: [this.team.side === 'A' ? -55 : 55, 0], // Goalkeeper
-      2: [baseX - 5 * directionSign, -18],
-      3: [baseX - 5 * directionSign, -9],
-      4: [baseX - 5 * directionSign, 9],
-      5: [baseX - 5 * directionSign, 18],
-      6: [baseX + 8 * directionSign, -18],
-      7: [baseX + 8 * directionSign, -8],
-      8: [baseX + 8 * directionSign, 8],
-      9: [baseX + 8 * directionSign, 18],
-      10: [baseX + 20 * directionSign, -12],
-      11: [baseX + 20 * directionSign, 12],
+      1: [this.team.side === 'A' ? -55 : 55, 0],
+      2: [baseX - 5 * sign, -18],
+      3: [baseX - 5 * sign, -9],
+      4: [baseX - 5 * sign, 9],
+      5: [baseX - 5 * sign, 18],
+      6: [baseX + 8 * sign, -18],
+      7: [baseX + 8 * sign, -8],
+      8: [baseX + 8 * sign, 8],
+      9: [baseX + 8 * sign, 18],
+      10: [baseX + 20 * sign, -12],
+      11: [baseX + 20 * sign, 12],
     };
 
     const pos = positions[player.number] || [0, 0];

@@ -15,6 +15,7 @@ export function createBall(): BallData {
     metalness: 0.1,
   });
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'ball';
   mesh.position.set(0, 1, 0);
   mesh.castShadow = true;
   mesh.receiveShadow = true;

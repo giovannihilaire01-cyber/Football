@@ -4,8 +4,8 @@ import * as CANNON from 'cannon-es';
 
 export class GameRules {
   private gameState: GameState;
-  private ballPossession: { team: string; player: Player | null } | null = null;
-  private kickCooldown: number = 0; // seconds
+  private kickCooldown: number = 0;
+  private lastScoringTeam: string | null = null;
 
   constructor(gameState: GameState) {
     this.gameState = gameState;
@@ -23,7 +23,7 @@ export class GameRules {
     const teams = this.gameState.getTeams();
 
     let closestPlayer: Player | null = null;
-    let closestDistance = 3; // Ball control range (increased from 2)
+    let closestDistance = 4; // Increased possession range
 
     for (const team of teams) {
       for (const player of team.players) {
@@ -48,7 +48,6 @@ export class GameRules {
     const ballPos = this.gameState.getBallPosition();
     const teams = this.gameState.getTeams();
 
-    // Find player with control
     let controllingPlayer: Player | null = null;
     for (const team of teams) {
       for (const player of team.players) {
@@ -61,35 +60,62 @@ export class GameRules {
     }
 
     if (controllingPlayer && ballBody) {
-      // Player with ball - add slight drag to ball toward player feet
+      // Stronger attachment when player has control
       const ballToPlayer = new CANNON.Vec3(
         controllingPlayer.position.x - ballPos.x,
-        0,
+        controllingPlayer.position.z < 0 ? 0.3 : 0, // Slight upward lift
         controllingPlayer.position.z - ballPos.z
       );
 
-      if (ballToPlayer.length() < 2) {
-        // Apply small force to keep ball with player
+      const distance = ballToPlayer.length();
+
+      if (distance > 0.1) {
         ballToPlayer.normalize();
-        ballToPlayer.scale(20, ballToPlayer);
+
+        // Apply drag force proportional to distance
+        if (distance < 1.5) {
+          ballToPlayer.scale(35, ballToPlayer); // Strong drag when very close
+        } else if (distance < 3) {
+          ballToPlayer.scale(20, ballToPlayer); // Medium drag
+        } else {
+          ballToPlayer.scale(10, ballToPlayer); // Weak drag when far
+        }
+
         ballBody.applyForce(ballToPlayer, ballBody.position);
+      }
+
+      // Keep ball on ground (slight downward force)
+      if (ballPos.y > 0.5) {
+        ballBody.applyForce(new CANNON.Vec3(0, -5, 0), ballBody.position);
       }
     }
   }
 
   private updateGoals(): void {
     const ballPos = this.gameState.getBallPosition();
+    const teams = this.gameState.getTeams();
 
-    // Check left goal (Team A scores)
-    if (ballPos.x < -60 && Math.abs(ballPos.z) < 7.32 && ballPos.y < 2.44) {
-      this.gameState.getTeams()[0].score++;
-      this.resetBall();
+    // Check left goal (Team A scores on right side)
+    if (ballPos.x > 60 && Math.abs(ballPos.z) < 7.32 && ballPos.y < 2.44) {
+      if (this.lastScoringTeam !== 'A') {
+        teams[0].score++;
+        this.lastScoringTeam = 'A';
+        this.resetBall();
+      }
     }
 
-    // Check right goal (Team B scores)
-    if (ballPos.x > 60 && Math.abs(ballPos.z) < 7.32 && ballPos.y < 2.44) {
-      this.gameState.getTeams()[1].score++;
-      this.resetBall();
+    // Check right goal (Team B scores on left side)
+    if (ballPos.x < -60 && Math.abs(ballPos.z) < 7.32 && ballPos.y < 2.44) {
+      if (this.lastScoringTeam !== 'B') {
+        teams[1].score++;
+        this.lastScoringTeam = 'B';
+        this.resetBall();
+      }
+    }
+
+    // Reset when ball far from goal
+    if (Math.abs(ballPos.x) < 30 || ballPos.y > 5) {
+      this.lastScoringTeam = null;
     }
   }
 
@@ -102,21 +128,65 @@ export class GameRules {
     }
   }
 
-  // Method to kick the ball
-  kickBall(player: Player, direction: CANNON.Vec3, power: number): void {
-    if (this.kickCooldown > 0 || !player.hasControl) return;
+  // Kick ball with direction and power
+  kickBall(player: Player, direction: CANNON.Vec3, power: number = 1): boolean {
+    if (this.kickCooldown > 0 || !player.hasControl) return false;
 
     const ballBody = this.gameState.getBallBody();
-    if (!ballBody) return;
+    if (!ballBody) return false;
 
+    // Normalize direction and apply power
     const normalizedDir = direction.clone();
     normalizedDir.normalize();
-    normalizedDir.scale(power * 50, normalizedDir);
+    normalizedDir.scale(power * 60, normalizedDir);
 
+    // Apply force and impulse for immediate effect
     ballBody.applyForce(normalizedDir, ballBody.position);
     ballBody.applyImpulse(normalizedDir, ballBody.position);
 
-    this.kickCooldown = 0.5;
+    this.kickCooldown = 0.3;
+    return true;
+  }
+
+  // Find best pass target
+  findPassTarget(player: Player, allTeams: GameState['teams'] extends any[] ? never : any): Player | null {
+    const teams = this.gameState.getTeams();
+    const teammates = teams.find(t => t.side === player.team)?.players || [];
+
+    let bestTarget: Player | null = null;
+    let bestScore = -1;
+
+    for (const teammate of teammates) {
+      if (teammate === player) continue;
+
+      const distance = player.position.distanceTo(teammate.position);
+      if (distance > 35) continue; // Max pass distance
+
+      // Score based on distance and position
+      const inForwardPosition = player.team === 'A' ?
+        teammate.position.x > player.position.x :
+        teammate.position.x < player.position.x;
+
+      let score = (1 - distance / 35) * 10;
+      if (inForwardPosition) score *= 1.5;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestTarget = teammate;
+      }
+    }
+
+    return bestTarget;
+  }
+
+  // Check if should shoot
+  shouldShoot(player: Player): boolean {
+    const goalX = player.team === 'A' ? 60 : -60;
+    const distanceToGoal = Math.abs(player.position.x - goalX);
+    const angleToGoal = Math.abs(player.position.z);
+
+    // Shoot if close and relatively centered
+    return distanceToGoal < 30 && angleToGoal < 25;
   }
 
   isOffside(player: Player): boolean {

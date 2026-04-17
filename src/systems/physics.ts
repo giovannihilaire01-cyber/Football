@@ -6,13 +6,23 @@ export class PhysicsWorld {
 
   constructor(world: CANNON.World) {
     this.world = world;
+
+    // Improve friction for realistic grass
+    this.world.defaultContactMaterial.friction = 0.6;
+    this.world.defaultContactMaterial.restitution = 0.2; // Less bouncy
+
     this.setupBoundaries();
   }
 
   private setupBoundaries(): void {
-    // Ground plane
+    // Ground plane with high friction (grass)
     const groundShape = new CANNON.Plane();
-    const groundBody = new CANNON.Body({ mass: 0, shape: groundShape });
+    const groundBody = new CANNON.Body({
+      mass: 0,
+      shape: groundShape,
+      friction: 0.8,
+      restitution: 0.1
+    });
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
     this.world.addBody(groundBody);
 

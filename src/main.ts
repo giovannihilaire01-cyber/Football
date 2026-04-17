@@ -71,8 +71,8 @@ gameState.setBall(ballData.mesh.position, ballData.body);
 const teamA = createTeam('A', -50, new THREE.Color(0xff0000));
 const teamB = createTeam('B', 50, new THREE.Color(0x0000ff));
 
-const aiControllerA = new AIController(teamA);
-const aiControllerB = new AIController(teamB);
+const aiControllerA = new AIController(teamA, gameRules);
+const aiControllerB = new AIController(teamB, gameRules);
 
 [teamA, teamB].forEach((team) => {
   team.players.forEach((player) => {
@@ -99,15 +99,35 @@ const gameLoop = () => {
   if (gameRunning) {
     gameState.updateTime(deltaTime);
 
-    // Update AI
-    aiControllerA.update(gameState.getBallPosition(), gameState.getTeams());
-    aiControllerB.update(gameState.getBallPosition(), gameState.getTeams());
+    // Update AI with game rules reference
+    aiControllerA.update(gameState.getBallPosition(), gameState.getTeams(), gameRules);
+    aiControllerB.update(gameState.getBallPosition(), gameState.getTeams(), gameRules);
 
-    // Update physics
-    physicsWorld.step(1 / 60, deltaTime, 3);
+    // Update physics with consistent timestep
+    physicsWorld.step(1 / 60);
 
     // Update game state from physics
     gameState.updatePositions();
+
+    // 🔴 CRITICAL FIX: Sync THREE.js meshes with physics bodies
+    for (const team of gameState.getTeams()) {
+      for (const player of team.players) {
+        player.mesh.position.copy(player.body.position as any);
+        player.mesh.quaternion.copy(player.body.quaternion);
+      }
+    }
+
+    // Sync ball mesh
+    const ballBody = gameState.getBallBody();
+    if (ballBody) {
+      const ballMesh = scene.getObjectByName('ball') || scene.children.find(
+        (child: any) => child.geometry?.type === 'SphereGeometry'
+      );
+      if (ballMesh) {
+        ballMesh.position.copy(ballBody.position as any);
+        ballMesh.quaternion.copy(ballBody.quaternion);
+      }
+    }
 
     // Update game rules
     gameRules.update(deltaTime);
@@ -128,9 +148,11 @@ window.addEventListener('resize', () => {
   renderer.setSize(width, height);
 });
 
-// Expose pause/play to UI
+// Expose game functions to UI
 (window as any).togglePause = () => {
   gameRunning = !gameRunning;
 };
+(window as any).gameRules = gameRules;
+(window as any).gameState = gameState;
 
 gameLoop();

@@ -80,47 +80,69 @@ export function setupControls(gameState: GameState, gameRules: GameRules): void 
     });
   }
 
-  // Handle player movement with arrow keys
+  // Handle player movement and actions with arrow keys and space
+  let lastKickTime = 0;
   document.addEventListener('keydown', (event) => {
     const selectedPlayer = gameState.getSelectedPlayer();
     if (!selectedPlayer) return;
 
+    const CANNON = require('cannon-es');
     const forceAmount = 300;
     const body = selectedPlayer.body;
-    let forceApplied = false;
+    let actionTaken = false;
 
     switch (event.key) {
       case 'ArrowUp':
         body.applyForce(
-          new (require('cannon-es')).Vec3(0, 0, -forceAmount),
+          new CANNON.Vec3(0, 0, -forceAmount),
           body.position
         );
-        forceApplied = true;
+        actionTaken = true;
         break;
       case 'ArrowDown':
         body.applyForce(
-          new (require('cannon-es')).Vec3(0, 0, forceAmount),
+          new CANNON.Vec3(0, 0, forceAmount),
           body.position
         );
-        forceApplied = true;
+        actionTaken = true;
         break;
       case 'ArrowLeft':
         body.applyForce(
-          new (require('cannon-es')).Vec3(-forceAmount, 0, 0),
+          new CANNON.Vec3(-forceAmount, 0, 0),
           body.position
         );
-        forceApplied = true;
+        actionTaken = true;
         break;
       case 'ArrowRight':
         body.applyForce(
-          new (require('cannon-es')).Vec3(forceAmount, 0, 0),
+          new CANNON.Vec3(forceAmount, 0, 0),
           body.position
         );
-        forceApplied = true;
+        actionTaken = true;
+        break;
+      case ' ': // Space key for kick
+        if (selectedPlayer.hasControl && Date.now() - lastKickTime > 300) {
+          // Kick toward goal
+          const goalX = selectedPlayer.team === 'A' ? 60 : -60;
+          const kickDirection = new CANNON.Vec3(
+            goalX - selectedPlayer.position.x,
+            0,
+            0 - selectedPlayer.position.z
+          );
+          kickDirection.normalize();
+
+          // Call game rules to execute kick
+          if ((window as any).gameRules?.kickBall) {
+            (window as any).gameRules.kickBall(selectedPlayer, kickDirection, 0.8);
+          }
+
+          lastKickTime = Date.now();
+          actionTaken = true;
+        }
         break;
     }
 
-    if (forceApplied) {
+    if (actionTaken) {
       event.preventDefault();
     }
   });
