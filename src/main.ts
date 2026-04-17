@@ -65,7 +65,7 @@ field.forEach(mesh => {
 const ballData = createBall();
 ballData.mesh.castShadow = true;
 scene.add(ballData.mesh);
-gamePhysics.addBody(ballData.body);
+gamePhysics.addBody(ballData.body, 'ball');
 gameState.setBall(ballData.mesh.position, ballData.body);
 
 // Create referee
@@ -220,7 +220,8 @@ const gameLoop = () => {
     // Resume after 3 seconds (properly handles timer reset for second half)
     setTimeout(() => {
       overlay.remove();
-      gameState.resumeFromHalftime(); // This now resets timer for second half
+      gameRules.resetForHalftime(); // Reset game rules state atomically
+      gameState.resumeFromHalftime(); // This now resets timer and ball position for second half
     }, 3000);
   } else if (gameStatus === 'finished' && !finishShown) {
     // Show match finish message
@@ -260,11 +261,13 @@ window.addEventListener('resize', () => {
   renderer.setSize(width, height);
 });
 
-// Expose game functions to UI
+// Expose game functions and objects to UI
 (window as any).togglePause = () => {
   gameRunning = !gameRunning;
 };
 (window as any).gameRules = gameRules;
 (window as any).gameState = gameState;
+(window as any).camera = camera;
+(window as any).renderer = renderer;
 
 gameLoop();

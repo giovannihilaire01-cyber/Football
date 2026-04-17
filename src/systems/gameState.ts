@@ -48,10 +48,23 @@ export class GameState {
 
   resumeFromHalftime(): void {
     if (this.gameStatus === 'halftime') {
-      // Transition to second half
+      // Atomic halftime transition: update all state together to prevent race conditions
       this.currentHalf = 2;
       this.matchTime = 0; // Reset timer for second half
       this.halftimeTriggered = false; // Reset trigger for second half finish
+      this.finishTriggered = false; // Reset finish trigger in case of edge case
+
+      // Reset ball to center field
+      if (this.ballBody) {
+        this.ballBody.position.set(0, 0.22, 0);
+        this.ballBody.velocity.set(0, 0, 0);
+        this.ballBody.angularVelocity.set(0, 0, 0);
+      }
+
+      // Reset game phase and possession
+      this.selectedPlayer = null;
+
+      // Transition game status LAST to ensure all state is ready
       this.gameStatus = 'playing';
     }
   }

@@ -332,4 +332,16 @@ export class GameRules {
     this.gamePhase = 'play';
     this.setPieceTeam = null;
   }
+
+  resetForHalftime(): void {
+    // Reset all game state for second half start
+    this.lastScoringTeam = null;
+    this.offsidePositions.clear();
+    this.lastBallX = 0;
+    this.lastBallZ = 0;
+    this.gamePhase = 'play';
+    this.setPieceTeam = null;
+    this.setPieceCooldown = 0;
+    this.kickCooldown = 0;
+  }
 }

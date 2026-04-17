@@ -4,6 +4,9 @@ import { Player } from '../components/player';
 export class PhysicsWorld {
   private world: CANNON.World;
   private bodies: CANNON.Body[] = [];
+  private playerMaterial: CANNON.Material;
+  private ballMaterial: CANNON.Material;
+  private groundMaterial: CANNON.Material;
 
   constructor(world: CANNON.World) {
     this.world = world;
@@ -17,7 +20,44 @@ export class PhysicsWorld {
     this.world.defaultContactMaterial.friction = 0.5; // Realistic grass friction
     this.world.defaultContactMaterial.restitution = 0.15; // Ball on grass (slight bounce)
 
+    // Setup contact materials for realistic interactions
+    this.setupContactMaterials();
     this.setupBoundaries();
+  }
+
+  private setupContactMaterials(): void {
+    // Define material types for different bodies
+    this.playerMaterial = new CANNON.Material('player');
+    this.ballMaterial = new CANNON.Material('ball');
+    this.groundMaterial = new CANNON.Material('ground');
+
+    // Player-to-player contact: High friction to prevent sliding
+    const playerPlayerContact = new CANNON.ContactMaterial(this.playerMaterial, this.playerMaterial, {
+      friction: 0.8,
+      restitution: 0.0, // No bounce between players
+    });
+    this.world.addContactMaterial(playerPlayerContact);
+
+    // Player-to-ball contact: Lower friction for kicking, realistic bounce
+    const playerBallContact = new CANNON.ContactMaterial(this.playerMaterial, this.ballMaterial, {
+      friction: 0.3, // Lower friction allows clean kicks
+      restitution: 0.6, // Ball bounces off player when kicked
+    });
+    this.world.addContactMaterial(playerBallContact);
+
+    // Ball-to-ground contact: Realistic rolling with slight bounce
+    const ballGroundContact = new CANNON.ContactMaterial(this.ballMaterial, this.groundMaterial, {
+      friction: 0.5, // Grass friction affects rolling
+      restitution: 0.2, // Slight bounce on ground
+    });
+    this.world.addContactMaterial(ballGroundContact);
+
+    // Ground-to-player contact: Realistic foot friction
+    const playerGroundContact = new CANNON.ContactMaterial(this.playerMaterial, this.groundMaterial, {
+      friction: 0.8, // High friction for traction
+      restitution: 0.0, // No bounce
+    });
+    this.world.addContactMaterial(playerGroundContact);
   }
 
   isGrounded(player: Player): boolean {
@@ -72,6 +112,7 @@ export class PhysicsWorld {
       friction: 0.6, // Realistic grass friction
       restitution: 0.1 // Grass absorbs energy
     });
+    groundBody.material = this.groundMaterial;
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
     this.world.addBody(groundBody);
 
@@ -82,29 +123,42 @@ export class PhysicsWorld {
     // Front boundary (z = -40)
     const frontWall = new CANNON.Box(new CANNON.Vec3(60, 10, wallThickness));
     const frontWallBody = new CANNON.Body({ mass: 0, shape: frontWall });
+    frontWallBody.material = this.groundMaterial;
     frontWallBody.position.set(0, 5, -40);
     this.world.addBody(frontWallBody);
 
     // Back boundary (z = 40)
     const backWall = new CANNON.Box(new CANNON.Vec3(60, 10, wallThickness));
     const backWallBody = new CANNON.Body({ mass: 0, shape: backWall });
+    backWallBody.material = this.groundMaterial;
     backWallBody.position.set(0, 5, 40);
     this.world.addBody(backWallBody);
 
     // Left boundary (x = -60)
     const leftWall = new CANNON.Box(new CANNON.Vec3(wallThickness, 10, 40));
     const leftWallBody = new CANNON.Body({ mass: 0, shape: leftWall });
+    leftWallBody.material = this.groundMaterial;
     leftWallBody.position.set(-60, 5, 0);
     this.world.addBody(leftWallBody);
 
     // Right boundary (x = 60)
     const rightWall = new CANNON.Box(new CANNON.Vec3(wallThickness, 10, 40));
     const rightWallBody = new CANNON.Body({ mass: 0, shape: rightWall });
+    rightWallBody.material = this.groundMaterial;
     rightWallBody.position.set(60, 5, 0);
     this.world.addBody(rightWallBody);
   }
 
-  addBody(body: CANNON.Body): void {
+  addBody(body: CANNON.Body, materialType: 'player' | 'ball' | 'ground' = 'player'): void {
+    // Apply material based on body type
+    if (materialType === 'player') {
+      body.material = this.playerMaterial;
+    } else if (materialType === 'ball') {
+      body.material = this.ballMaterial;
+    } else if (materialType === 'ground') {
+      body.material = this.groundMaterial;
+    }
+
     this.world.addBody(body);
     this.bodies.push(body);
   }
@@ -115,6 +169,18 @@ export class PhysicsWorld {
 
   getBodies(): CANNON.Body[] {
     return this.bodies;
+  }
+
+  getPlayerMaterial(): CANNON.Material {
+    return this.playerMaterial;
+  }
+
+  getBallMaterial(): CANNON.Material {
+    return this.ballMaterial;
+  }
+
+  getGroundMaterial(): CANNON.Material {
+    return this.groundMaterial;
   }
 
   // Apply rolling resistance to ball AND enforce height constraints

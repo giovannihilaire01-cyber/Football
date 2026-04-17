@@ -1,5 +1,6 @@
 import { GameState } from '../systems/gameState';
 import { GameRules } from '../systems/gameRules';
+import { FormationType } from '../components/team';
 
 export function updateHUD(gameState: GameState): void {
   const teams = gameState.getTeams();
@@ -59,15 +60,15 @@ export function setupControls(gameState: GameState, gameRules: GameRules): void 
     formationButton.addEventListener('click', () => {
       const teams = gameState.getTeams();
       const teamA = teams[0];
-      const formations = ['4-4-2', '3-5-2', '5-3-2'];
+      const formations: FormationType[] = ['4-4-2', '3-5-2', '5-3-2'];
       const currentIndex = formations.indexOf(teamA.formation);
       const nextIndex = (currentIndex + 1) % formations.length;
-      teamA.formation = formations[nextIndex];
+      teamA.changeFormation(formations[nextIndex]);
       formationButton.textContent = `Formation: ${teamA.formation}`;
     });
   }
 
-  // Handle player selection via canvas click
+  // Handle player selection via canvas click with proper raycasting
   const canvasContainer = document.getElementById('canvas-container');
   if (canvasContainer) {
     canvasContainer.addEventListener('click', (event) => {
@@ -75,18 +76,29 @@ export function setupControls(gameState: GameState, gameRules: GameRules): void 
       const mouseX = event.clientX - rect.left;
       const mouseY = event.clientY - rect.top;
 
-      // Note: This would need the camera to work with raycasting
-      // For now, cycle through team A players
-      const teams = gameState.getTeams();
-      const teamA = teams[0];
-      const currentSelected = gameState.getSelectedPlayer();
+      // Get camera and renderer from window globals
+      const camera = (window as any).camera;
+      const renderer = (window as any).renderer;
 
-      if (!currentSelected) {
-        gameState.setSelectedPlayer(teamA.players[0]);
+      if (camera && renderer) {
+        // Use raycasting to detect clicked player
+        const clickedPlayer = gameState.getPlayerAt({ x: mouseX, y: mouseY }, camera, renderer);
+        if (clickedPlayer) {
+          gameState.setSelectedPlayer(clickedPlayer);
+        }
       } else {
-        const currentIndex = teamA.players.indexOf(currentSelected);
-        const nextIndex = (currentIndex + 1) % teamA.players.length;
-        gameState.setSelectedPlayer(teamA.players[nextIndex]);
+        // Fallback: cycle through team A players if camera/renderer not available
+        const teams = gameState.getTeams();
+        const teamA = teams[0];
+        const currentSelected = gameState.getSelectedPlayer();
+
+        if (!currentSelected) {
+          gameState.setSelectedPlayer(teamA.players[0]);
+        } else {
+          const currentIndex = teamA.players.indexOf(currentSelected);
+          const nextIndex = (currentIndex + 1) % teamA.players.length;
+          gameState.setSelectedPlayer(teamA.players[nextIndex]);
+        }
       }
     });
   }
