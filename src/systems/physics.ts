@@ -1,4 +1,5 @@
 import * as CANNON from 'cannon-es';
+import { Player } from '../components/player';
 
 export class PhysicsWorld {
   private world: CANNON.World;
@@ -12,6 +13,23 @@ export class PhysicsWorld {
     this.world.defaultContactMaterial.restitution = 0.2; // Less bouncy
 
     this.setupBoundaries();
+  }
+
+  isGrounded(player: Player): boolean {
+    const rayResult = new CANNON.RaycastResult();
+    const from = new CANNON.Vec3(
+      player.body.position.x,
+      player.body.position.y,
+      player.body.position.z
+    );
+    const to = new CANNON.Vec3(
+      player.body.position.x,
+      player.body.position.y - 1.2,
+      player.body.position.z
+    );
+
+    this.world.raycastClosest(from, to, {}, rayResult);
+    return rayResult.hasHit && rayResult.distance < 0.5;
   }
 
   private setupBoundaries(): void {

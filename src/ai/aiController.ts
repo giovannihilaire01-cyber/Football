@@ -2,21 +2,27 @@ import { Player } from '../components/player';
 import { Team } from '../components/team';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { PhysicsWorld } from '../systems/physics';
 
 export class AIController {
   private team: Team;
   private ballPosition: THREE.Vector3;
-  private gameRules: any; // Reference to game rules for kicks
+  private gameRules: any;
+  private physicsWorld: PhysicsWorld | null = null;
   private maxSpeed = 18;
-  private maxForce = 250;
+  private maxForce = 100; // Reduced from 250 for realistic movement
   private updateCounter = 0;
-  private decisionInterval = 15; // Update decisions every 15 frames
+  private decisionInterval = 15;
   private playerDecisions: Map<Player, { target: THREE.Vector3; action: string }> = new Map();
 
   constructor(team: Team, gameRules?: any) {
     this.team = team;
     this.ballPosition = new THREE.Vector3();
     this.gameRules = gameRules;
+  }
+
+  setPhysicsWorld(physicsWorld: PhysicsWorld): void {
+    this.physicsWorld = physicsWorld;
   }
 
   update(ballPosition: THREE.Vector3, allTeams: Team[], gameRules?: any): void {
@@ -125,6 +131,9 @@ export class AIController {
   }
 
   private updatePlayerMovement(player: Player, allTeams: Team[]): void {
+    // Check if grounded before applying forces
+    const grounded = this.physicsWorld ? this.physicsWorld.isGrounded(player) : true;
+
     const direction = new THREE.Vector3(
       player.targetPosition.x - player.position.x,
       0,
@@ -133,7 +142,7 @@ export class AIController {
 
     const distanceToTarget = direction.length();
 
-    if (distanceToTarget > 0.5) {
+    if (distanceToTarget > 0.5 && grounded) {
       direction.normalize();
 
       // Force multiplier based on situation
@@ -157,11 +166,18 @@ export class AIController {
       player.body.velocity.z *= 0.93;
     }
 
+    // Cap upward velocity to prevent jumping
+    if (player.body.velocity.y > 2) {
+      player.body.velocity.y = 2;
+    }
+
     // Speed limit
     this.limitSpeed(player);
 
     // Collision avoidance
-    this.avoidCollisions(player, allTeams);
+    if (grounded) {
+      this.avoidCollisions(player, allTeams);
+    }
   }
 
   private limitSpeed(player: Player): void {
@@ -180,7 +196,7 @@ export class AIController {
 
   private avoidCollisions(player: Player, allTeams: Team[]): void {
     const avoidanceRadius = 2.5;
-    const avoidanceForce = 120;
+    const avoidanceForce = 30; // Reduced from 120 for realistic movement
 
     for (const team of allTeams) {
       for (const other of team.players) {

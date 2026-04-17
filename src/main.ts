@@ -74,6 +74,10 @@ const teamB = createTeam('B', 50, new THREE.Color(0x0000ff));
 const aiControllerA = new AIController(teamA, gameRules);
 const aiControllerB = new AIController(teamB, gameRules);
 
+// Pass physics world to AI controllers for ground detection
+aiControllerA.setPhysicsWorld(gamePhysics);
+aiControllerB.setPhysicsWorld(gamePhysics);
+
 [teamA, teamB].forEach((team) => {
   team.players.forEach((player) => {
     player.mesh.castShadow = true;
