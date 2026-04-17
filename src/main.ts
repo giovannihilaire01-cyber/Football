@@ -139,9 +139,23 @@ const gameLoop = () => {
     // Update game state from physics
     gameState.updatePositions();
 
-    // 🔴 CRITICAL FIX: Sync THREE.js meshes with physics bodies
+    // 🔴 CRITICAL FIX: Enforce ground constraint and sync meshes
     for (const team of gameState.getTeams()) {
       for (const player of team.players) {
+        // ENFORCE MAXIMUM HEIGHT: Players cannot rise above 2.0 units
+        // (normal standing position is ~0.9, max jump would be ~1.5)
+        if (player.body.position.y > 2.0) {
+          player.body.position.y = 2.0;
+          player.body.velocity.y = 0; // Zero out upward velocity
+        }
+
+        // ENFORCE MINIMUM HEIGHT: Players cannot go below ground (0.3)
+        if (player.body.position.y < 0.3) {
+          player.body.position.y = 0.3;
+          player.body.velocity.y = 0;
+        }
+
+        // Sync visual mesh with physics body
         player.mesh.position.copy(player.body.position as any);
         player.mesh.quaternion.copy(player.body.quaternion);
       }

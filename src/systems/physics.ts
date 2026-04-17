@@ -21,20 +21,42 @@ export class PhysicsWorld {
   }
 
   isGrounded(player: Player): boolean {
-    const rayResult = new CANNON.RaycastResult();
-    const from = new CANNON.Vec3(
-      player.body.position.x,
-      player.body.position.y,
-      player.body.position.z
-    );
-    const to = new CANNON.Vec3(
-      player.body.position.x,
-      player.body.position.y - 1.2,
-      player.body.position.z
-    );
+    // Multiple raycast points for reliable ground detection
+    // Cast from multiple locations around player base to avoid missing ground
+    const rayPoints = [
+      [0, 0],      // Center
+      [0.2, 0],    // Front
+      [-0.2, 0],   // Back
+      [0, 0.2],    // Right
+      [0, -0.2],   // Left
+    ];
 
-    this.world.raycastClosest(from, to, {}, rayResult);
-    return rayResult.hasHit && rayResult.distance < 0.5;
+    let groundCount = 0;
+    const groundThreshold = 3; // Need at least 3 rays hitting ground
+
+    for (const [offsetX, offsetZ] of rayPoints) {
+      const rayResult = new CANNON.RaycastResult();
+      const from = new CANNON.Vec3(
+        player.body.position.x + offsetX,
+        player.body.position.y,
+        player.body.position.z + offsetZ
+      );
+      const to = new CANNON.Vec3(
+        player.body.position.x + offsetX,
+        player.body.position.y - 1.0, // Cast down 1.0 unit from center
+        player.body.position.z + offsetZ
+      );
+
+      this.world.raycastClosest(from, to, {}, rayResult);
+
+      // Ground detected if ray hits within 0.9 units (player radius ~0.3 + clearance)
+      if (rayResult.hasHit && rayResult.distance < 0.9) {
+        groundCount++;
+      }
+    }
+
+    // Player is grounded if at least 3 rays hit ground (foot contact)
+    return groundCount >= 3;
   }
 
   private setupBoundaries(): void {
@@ -91,16 +113,32 @@ export class PhysicsWorld {
     return this.bodies;
   }
 
-  // Apply rolling resistance to ball
+  // Apply rolling resistance to ball AND enforce height constraints
   // Rolling resistance: F = -μ_rr × m × g
   // For grass: μ_rr ≈ 0.001-0.002
   applyRollingResistance(ballBody: CANNON.Body): void {
     const rollingResistanceCoeff = 0.0015; // Coefficient of rolling resistance on grass
     const gravityAccel = 9.82;
 
-    // Only apply if ball is moving and on ground
+    // ENFORCE MAXIMUM HEIGHT: Ball cannot be elevated
+    // Ball radius = 0.22, so minimum Y position = 0.22 (on ground)
+    const ballRadius = 0.22;
+    const maxBallHeight = 5.0; // Ball can go up to 5m high in trajectory
+    const minBallHeight = ballRadius; // Ball rests on ground
+
+    if (ballBody.position.y > maxBallHeight) {
+      ballBody.position.y = maxBallHeight;
+      ballBody.velocity.y = Math.min(ballBody.velocity.y, 0); // Only allow downward
+    }
+
+    if (ballBody.position.y < minBallHeight) {
+      ballBody.position.y = minBallHeight;
+      ballBody.velocity.y = 0; // Stop downward movement (on ground)
+    }
+
+    // Only apply rolling resistance if ball is moving and relatively on ground
     const speed = ballBody.velocity.length();
-    if (speed > 0.1) {
+    if (speed > 0.1 && ballBody.position.y < 0.5) { // Only on ground surface
       // Drag force from rolling resistance
       const dragMagnitude = rollingResistanceCoeff * ballBody.mass * gravityAccel;
 

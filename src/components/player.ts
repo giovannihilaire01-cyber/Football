@@ -25,7 +25,9 @@ export function createPlayer(number: number, team: string, x: number, z: number,
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  const shape = new CANNON.Cylinder(0.3, 0.3, 1.8, 8);
+  // Use Sphere shape for better collision detection and ground contact
+  // Sphere radius chosen to match player width (~0.35) and prevent clipping
+  const shape = new CANNON.Sphere(0.35);
   const body = new CANNON.Body({
     mass: 75,
     shape: shape,
@@ -33,7 +35,8 @@ export function createPlayer(number: number, team: string, x: number, z: number,
     angularDamping: 0.4, // Reduced from 0.9 (was 2x too high)
     friction: 0.8,
   });
-  body.position.set(x, 0.9, z);
+  // Position body center slightly higher to account for sphere radius
+  body.position.set(x, 0.95, z);
 
   return {
     mesh,

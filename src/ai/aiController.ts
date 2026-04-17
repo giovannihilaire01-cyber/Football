@@ -228,9 +228,20 @@ export class AIController {
       player.body.velocity.z *= 0.93;
     }
 
-    // Cap upward velocity to prevent jumping
-    if (player.body.velocity.y > 2) {
-      player.body.velocity.y = 2;
+    // CRITICAL: Enforce ground constraint
+    if (grounded) {
+      // When on ground, prevent upward movement and excessive downward velocity
+      if (player.body.velocity.y > 0.1) {
+        // Zero out upward velocity when grounded
+        player.body.velocity.y = 0;
+      } else if (player.body.velocity.y < -0.5) {
+        // Limit downward velocity (gravity will keep accelerating)
+        player.body.velocity.y = -0.5;
+      }
+    } else {
+      // When in air: apply air resistance to vertical velocity
+      // This prevents players from accumulating infinite vertical velocity
+      player.body.velocity.y *= 0.98; // 2% damping per frame
     }
 
     // Speed limit

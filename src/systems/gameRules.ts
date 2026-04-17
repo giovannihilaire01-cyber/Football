@@ -211,7 +211,7 @@ export class GameRules {
   private resetBall(): void {
     const ballBody = this.gameState.getBallBody();
     if (ballBody) {
-      ballBody.position.set(0, 1, 0);
+      ballBody.position.set(0, 0.5, 0); // Ball rests on ground (radius 0.22 + clearance)
       ballBody.velocity.set(0, 0, 0);
       ballBody.angularVelocity.set(0, 0, 0);
     }
