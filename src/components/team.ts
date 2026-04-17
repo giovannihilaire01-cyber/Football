@@ -44,7 +44,8 @@ export function createTeam(side: string, xOffset: number, color: THREE.Color): T
   };
 
   const formationPositions = formations['4-4-2'];
-  let xPositions = [0, -30, -20, -20, -30, 0, 0, 10, 10];
+  // X positions for 11 players: GK, 4 defenders, 4 midfielders, 2 forwards
+  let xPositions = [0, -30, -20, -20, -30, 0, 0, 10, 10, 20, 20];
 
   for (let i = 0; i < 11; i++) {
     const formation = formationPositions[i];

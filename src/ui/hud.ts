@@ -11,13 +11,15 @@ export function updateHUD(gameState: GameState): void {
   if (teamAScoreEl) teamAScoreEl.textContent = String(teams[0].score);
   if (teamBScoreEl) teamBScoreEl.textContent = String(teams[1].score);
 
-  // Update time
+  // Update time with half indicator
   const timeEl = document.getElementById('match-time');
   if (timeEl) {
-    const minutes = Math.floor(gameState.getMatchTime() / 60);
-    const seconds = Math.floor(gameState.getMatchTime() % 60);
-    const timeDisplay = minutes >= 45 ? `45+${Math.floor((gameState.getMatchTime() - 2700) / 60)}` : `${minutes}`;
-    timeEl.textContent = `${timeDisplay}:${String(seconds).padStart(2, '0')}`;
+    const matchTime = gameState.getMatchTime();
+    const minutes = Math.floor(matchTime / 60);
+    const seconds = Math.floor(matchTime % 60);
+    const currentHalf = (gameState as any).getCurrentHalf ? (gameState as any).getCurrentHalf() : 1;
+    const halfLabel = currentHalf === 1 ? 'H1' : 'H2';
+    timeEl.textContent = `${minutes}:${String(seconds).padStart(2, '0')} (${halfLabel})`;
   }
 
   // Update player info

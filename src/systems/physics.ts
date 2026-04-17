@@ -21,18 +21,22 @@ export class PhysicsWorld {
   }
 
   isGrounded(player: Player): boolean {
-    // Multiple raycast points for reliable ground detection
-    // Cast from multiple locations around player base to avoid missing ground
+    // Multi-point raycast for robust ground detection
+    // Uses 8 rays in circle pattern around player base
     const rayPoints = [
-      [0, 0],      // Center
-      [0.2, 0],    // Front
-      [-0.2, 0],   // Back
-      [0, 0.2],    // Right
-      [0, -0.2],   // Left
+      [0, 0],       // Center
+      [0.25, 0],    // Right
+      [-0.25, 0],   // Left
+      [0, 0.25],    // Forward
+      [0, -0.25],   // Back
+      [0.17, 0.17], // Diagonal 1
+      [-0.17, 0.17], // Diagonal 2
+      [0.17, -0.17], // Diagonal 3
+      [-0.17, -0.17], // Diagonal 4
     ];
 
     let groundCount = 0;
-    const groundThreshold = 3; // Need at least 3 rays hitting ground
+    const groundThreshold = 2; // Need at least 2 rays hitting ground (more lenient)
 
     for (const [offsetX, offsetZ] of rayPoints) {
       const rayResult = new CANNON.RaycastResult();
@@ -43,20 +47,20 @@ export class PhysicsWorld {
       );
       const to = new CANNON.Vec3(
         player.body.position.x + offsetX,
-        player.body.position.y - 1.0, // Cast down 1.0 unit from center
+        player.body.position.y - 0.8, // Cast down 0.8 unit
         player.body.position.z + offsetZ
       );
 
       this.world.raycastClosest(from, to, {}, rayResult);
 
-      // Ground detected if ray hits within 0.9 units (player radius ~0.3 + clearance)
-      if (rayResult.hasHit && rayResult.distance < 0.9) {
+      // Ground detected if ray hits within 0.8 units
+      if (rayResult.hasHit && rayResult.distance < 0.8) {
         groundCount++;
       }
     }
 
-    // Player is grounded if at least 3 rays hit ground (foot contact)
-    return groundCount >= 3;
+    // Player is grounded if at least 2 rays hit ground (foot contact)
+    return groundCount >= groundThreshold;
   }
 
   private setupBoundaries(): void {
@@ -120,10 +124,11 @@ export class PhysicsWorld {
     const rollingResistanceCoeff = 0.0015; // Coefficient of rolling resistance on grass
     const gravityAccel = 9.82;
 
-    // ENFORCE MAXIMUM HEIGHT: Ball cannot be elevated
+    // ENFORCE MAXIMUM HEIGHT: Ball cannot exceed realistic trajectory height
     // Ball radius = 0.22, so minimum Y position = 0.22 (on ground)
+    // Realistic maximum height for headers/throws: ~2.5 meters
     const ballRadius = 0.22;
-    const maxBallHeight = 5.0; // Ball can go up to 5m high in trajectory
+    const maxBallHeight = 2.5; // Realistic max height (headers ~2.44m goal height)
     const minBallHeight = ballRadius; // Ball rests on ground
 
     if (ballBody.position.y > maxBallHeight) {

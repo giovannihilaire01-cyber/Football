@@ -8,7 +8,10 @@ export class GameState {
   private ballPosition: THREE.Vector3 = new THREE.Vector3();
   private ballBody: CANNON.Body | null = null;
   private matchTime: number = 0;
-  private matchDuration: number = 90 * 60; // 90 minutes in seconds
+  private firstHalfTime: number = 45 * 60; // First half: 45 minutes
+  private secondHalfTime: number = 45 * 60; // Second half: 45 minutes
+  private matchDuration: number = 90 * 60; // Total: 90 minutes
+  private currentHalf: number = 1; // Half 1 or 2
   private selectedPlayer: Player | null = null;
   private gameStatus: 'playing' | 'paused' | 'halftime' | 'finished' = 'playing';
   private halftimeTriggered: boolean = false;
@@ -28,14 +31,15 @@ export class GameState {
     if (this.gameStatus === 'playing') {
       this.matchTime += deltaTime;
 
-      // Check for halftime at 45 minutes (2700 seconds)
-      if (this.matchTime >= 2700 && !this.halftimeTriggered) {
+      // FIRST HALF: Check for halftime at 45 minutes (2700 seconds)
+      if (this.currentHalf === 1 && this.matchTime >= this.firstHalfTime && !this.halftimeTriggered) {
         this.gameStatus = 'halftime';
         this.halftimeTriggered = true;
       }
 
-      // Check for match finish at 90 minutes (5400 seconds)
-      if (this.matchTime >= 5400 && !this.finishTriggered) {
+      // SECOND HALF: Check for match finish at 90 minutes total
+      // (45 minutes first half + 45 minutes second half)
+      if (this.currentHalf === 2 && this.matchTime >= this.secondHalfTime && !this.finishTriggered) {
         this.gameStatus = 'finished';
         this.finishTriggered = true;
       }
@@ -44,8 +48,24 @@ export class GameState {
 
   resumeFromHalftime(): void {
     if (this.gameStatus === 'halftime') {
+      // Transition to second half
+      this.currentHalf = 2;
+      this.matchTime = 0; // Reset timer for second half
+      this.halftimeTriggered = false; // Reset trigger for second half finish
       this.gameStatus = 'playing';
     }
+  }
+
+  getCurrentHalf(): number {
+    return this.currentHalf;
+  }
+
+  getDisplayTime(): string {
+    // Display time for current half
+    const minutes = Math.floor(this.matchTime / 60);
+    const seconds = Math.floor(this.matchTime % 60);
+    const half = this.currentHalf === 1 ? '1st' : '2nd';
+    return `${minutes}:${String(seconds).padStart(2, '0')} (${half} Half)`;
   }
 
   recordGoal(): void {

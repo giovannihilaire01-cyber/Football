@@ -108,12 +108,20 @@ export class GameRules {
 
     for (const team of teams) {
       for (const player of team.players) {
+        // Check if player is in offside position
         if (this.isOffside(player)) {
           this.offsidePositions.set(player, player.position.x);
         } else {
+          // Clear offside status when player is no longer offside
           this.offsidePositions.delete(player);
         }
       }
+    }
+
+    // Periodic cleanup: Clear offside map if ball is far from goals
+    // (prevents stale offside states from previous plays)
+    if (Math.abs(ballPos.x) < 30) {
+      this.offsidePositions.clear();
     }
   }
 
@@ -162,10 +170,11 @@ export class GameRules {
     const ballPos = this.gameState.getBallPosition();
     const teams = this.gameState.getTeams();
 
-    // Check left goal (Team A scores on right side)
+    // TEAM A GOAL: Ball in right goal area (x > 60)
+    // Team A starts at x=-50 (left side), attacks toward x=60 (right goal)
     if (ballPos.x > 60 && Math.abs(ballPos.z) < 7.32 && ballPos.y < 2.44) {
       if (this.lastScoringTeam !== 'A') {
-        // Check if any Team A player was in offside position
+        // Check if any Team A player was in offside position when goal scored
         const teamAOffside = Array.from(this.offsidePositions.entries()).some(
           ([player, _]) => player.team === 'A'
         );
@@ -176,16 +185,18 @@ export class GameRules {
           this.lastScoringTeam = 'A';
           this.resetBall();
         } else {
+          // Goal disallowed due to offside
           this.lastScoringTeam = 'A-OFFSIDE';
           this.resetBall();
         }
       }
     }
 
-    // Check right goal (Team B scores on left side)
+    // TEAM B GOAL: Ball in left goal area (x < -60)
+    // Team B starts at x=50 (right side), attacks toward x=-60 (left goal)
     if (ballPos.x < -60 && Math.abs(ballPos.z) < 7.32 && ballPos.y < 2.44) {
       if (this.lastScoringTeam !== 'B') {
-        // Check if any Team B player was in offside position
+        // Check if any Team B player was in offside position when goal scored
         const teamBOffside = Array.from(this.offsidePositions.entries()).some(
           ([player, _]) => player.team === 'B'
         );
@@ -196,6 +207,7 @@ export class GameRules {
           this.lastScoringTeam = 'B';
           this.resetBall();
         } else {
+          // Goal disallowed due to offside
           this.lastScoringTeam = 'B-OFFSIDE';
           this.resetBall();
         }
@@ -211,7 +223,8 @@ export class GameRules {
   private resetBall(): void {
     const ballBody = this.gameState.getBallBody();
     if (ballBody) {
-      ballBody.position.set(0, 0.5, 0); // Ball rests on ground (radius 0.22 + clearance)
+      // Ball radius is 0.22, so position at 0.22 sits flush on ground (y=0)
+      ballBody.position.set(0, 0.22, 0); // Ball rests exactly on ground
       ballBody.velocity.set(0, 0, 0);
       ballBody.angularVelocity.set(0, 0, 0);
     }
@@ -279,22 +292,32 @@ export class GameRules {
   }
 
   isOffside(player: Player): boolean {
+    // Offside only applies to attacking players (near opponent goal)
     const ballPos = this.gameState.getBallPosition();
     const teams = this.gameState.getTeams();
     const playerTeamIndex = teams.findIndex((t) => t.side === player.team);
     const opposingTeam = teams[playerTeamIndex === 0 ? 1 : 0];
 
+    // Determine player's attacking direction
     const playerDirection = player.team === 'A' ? 1 : -1;
-    let opponentsBetween = 0;
 
+    // Only check offside if player is ahead of ball in attacking direction
+    const ballToPlayer = (player.position.x - ballPos.x) * playerDirection;
+    if (ballToPlayer < 0) {
+      return false; // Player is behind ball, can't be offside
+    }
+
+    // Count opponents ahead of player in attacking direction
+    let opponentsBetween = 0;
     for (const opponent of opposingTeam.players) {
-      const isAhead = (opponent.position.x - player.position.x) * playerDirection > 0;
-      if (isAhead) {
+      const opponentAhead = (opponent.position.x - player.position.x) * playerDirection > 0;
+      if (opponentAhead) {
         opponentsBetween++;
       }
     }
 
-    return opponentsBetween >= 2;
+    // Offside if fewer than 2 opponents ahead of player
+    return opponentsBetween < 2;
   }
 
   getGamePhase(): string {

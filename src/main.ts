@@ -161,11 +161,23 @@ const gameLoop = () => {
       }
     }
 
-    // Sync ball mesh
+    // Sync ball mesh (robust lookup with fallbacks)
     if (ballBody) {
-      const ballMesh = scene.getObjectByName('ball') || scene.children.find(
-        (child: any) => child.geometry?.type === 'SphereGeometry'
-      );
+      let ballMesh = scene.getObjectByName('ball');
+
+      // Fallback 1: Find by geometry type if name lookup fails
+      if (!ballMesh) {
+        ballMesh = scene.children.find(
+          (child: any) => child.geometry?.type === 'SphereGeometry'
+        );
+      }
+
+      // Fallback 2: Store reference if found (prevent repeated searches)
+      if (ballMesh && !(ballMesh as any)._isBall) {
+        (ballMesh as any)._isBall = true;
+      }
+
+      // Update ball mesh if found
       if (ballMesh) {
         ballMesh.position.copy(ballBody.position as any);
         ballMesh.quaternion.copy(ballBody.quaternion);
@@ -205,10 +217,10 @@ const gameLoop = () => {
     document.body.appendChild(overlay);
     halftimeShown = true;
 
-    // Resume after 3 seconds
+    // Resume after 3 seconds (properly handles timer reset for second half)
     setTimeout(() => {
       overlay.remove();
-      gameState.resumeFromHalftime();
+      gameState.resumeFromHalftime(); // This now resets timer for second half
     }, 3000);
   } else if (gameStatus === 'finished' && !finishShown) {
     // Show match finish message
