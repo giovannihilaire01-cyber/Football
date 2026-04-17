@@ -1,0 +1,20 @@
+{
+  "name": "football-3d-simulator",
+  "version": "1.0.0",
+  "description": "Advanced 3D Football Simulation Engine",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^r128",
+    "cannon-es": "^0.20.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "@types/node": "^20.10.5"
+  }
+}
