@@ -33,6 +33,8 @@ export function updateHUD(gameState: GameState): void {
 
 export function setupControls(gameState: GameState, gameRules: GameRules): void {
   const pauseButton = document.getElementById('pause-button');
+  const formationButton = document.getElementById('formation-button');
+
   if (pauseButton) {
     pauseButton.addEventListener('click', () => {
       const status = gameState.getGameStatus();
@@ -42,46 +44,84 @@ export function setupControls(gameState: GameState, gameRules: GameRules): void 
     });
   }
 
-  // Handle player selection via click
-  let selectedForMovement = false;
+  if (formationButton) {
+    formationButton.addEventListener('click', () => {
+      const teams = gameState.getTeams();
+      const teamA = teams[0];
+      const formations = ['4-4-2', '3-5-2', '5-3-2'];
+      const currentIndex = formations.indexOf(teamA.formation);
+      const nextIndex = (currentIndex + 1) % formations.length;
+      teamA.formation = formations[nextIndex];
+      formationButton.textContent = `Formation: ${teamA.formation}`;
+    });
+  }
 
-  document.addEventListener('click', (event) => {
-    const target = event.target as HTMLElement;
+  // Handle player selection via canvas click
+  const canvasContainer = document.getElementById('canvas-container');
+  if (canvasContainer) {
+    canvasContainer.addEventListener('click', (event) => {
+      const rect = canvasContainer.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
 
-    // Ignore clicks on UI elements
-    if (target.closest('#controls-panel') || target.closest('#hud')) {
-      return;
-    }
+      // Note: This would need the camera to work with raycasting
+      // For now, cycle through team A players
+      const teams = gameState.getTeams();
+      const teamA = teams[0];
+      const currentSelected = gameState.getSelectedPlayer();
 
-    // For now, simple selection - in a full implementation would use raycasting
-    // This is a placeholder for future implementation
-  });
+      if (!currentSelected) {
+        gameState.setSelectedPlayer(teamA.players[0]);
+      } else {
+        const currentIndex = teamA.players.indexOf(currentSelected);
+        const nextIndex = (currentIndex + 1) % teamA.players.length;
+        gameState.setSelectedPlayer(teamA.players[nextIndex]);
+      }
+    });
+  }
 
   // Handle player movement with arrow keys
   document.addEventListener('keydown', (event) => {
     const selectedPlayer = gameState.getSelectedPlayer();
     if (!selectedPlayer) return;
 
-    const moveDistance = 2;
+    const forceAmount = 300;
     const body = selectedPlayer.body;
+    let forceApplied = false;
 
     switch (event.key) {
       case 'ArrowUp':
-        body.velocity.z -= moveDistance * 10;
-        event.preventDefault();
+        body.applyForce(
+          new (require('cannon-es')).Vec3(0, 0, -forceAmount),
+          body.position
+        );
+        forceApplied = true;
         break;
       case 'ArrowDown':
-        body.velocity.z += moveDistance * 10;
-        event.preventDefault();
+        body.applyForce(
+          new (require('cannon-es')).Vec3(0, 0, forceAmount),
+          body.position
+        );
+        forceApplied = true;
         break;
       case 'ArrowLeft':
-        body.velocity.x -= moveDistance * 10;
-        event.preventDefault();
+        body.applyForce(
+          new (require('cannon-es')).Vec3(-forceAmount, 0, 0),
+          body.position
+        );
+        forceApplied = true;
         break;
       case 'ArrowRight':
-        body.velocity.x += moveDistance * 10;
-        event.preventDefault();
+        body.applyForce(
+          new (require('cannon-es')).Vec3(forceAmount, 0, 0),
+          body.position
+        );
+        forceApplied = true;
         break;
+    }
+
+    if (forceApplied) {
+      event.preventDefault();
     }
   });
 }
