@@ -11,6 +11,9 @@ export class GameState {
   private matchDuration: number = 90 * 60; // 90 minutes in seconds
   private selectedPlayer: Player | null = null;
   private gameStatus: 'playing' | 'paused' | 'halftime' | 'finished' = 'playing';
+  private halftimeTriggered: boolean = false;
+  private finishTriggered: boolean = false;
+  private lastGoalTime: number = 0;
 
   addTeam(team: Team): void {
     this.teams.push(team);
@@ -24,7 +27,33 @@ export class GameState {
   updateTime(deltaTime: number): void {
     if (this.gameStatus === 'playing') {
       this.matchTime += deltaTime;
+
+      // Check for halftime at 45 minutes (2700 seconds)
+      if (this.matchTime >= 2700 && !this.halftimeTriggered) {
+        this.gameStatus = 'halftime';
+        this.halftimeTriggered = true;
+      }
+
+      // Check for match finish at 90 minutes (5400 seconds)
+      if (this.matchTime >= 5400 && !this.finishTriggered) {
+        this.gameStatus = 'finished';
+        this.finishTriggered = true;
+      }
     }
+  }
+
+  resumeFromHalftime(): void {
+    if (this.gameStatus === 'halftime') {
+      this.gameStatus = 'playing';
+    }
+  }
+
+  recordGoal(): void {
+    this.lastGoalTime = this.matchTime;
+  }
+
+  getLastGoalTime(): number {
+    return this.lastGoalTime;
   }
 
   updatePositions(): void {

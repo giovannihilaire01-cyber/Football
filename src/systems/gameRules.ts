@@ -204,6 +204,7 @@ export class GameRules {
 
         if (!teamAOffside) {
           teams[0].score++;
+          this.gameState.recordGoal();
           this.lastScoringTeam = 'A';
           this.resetBall();
         } else {
@@ -223,6 +224,7 @@ export class GameRules {
 
         if (!teamBOffside) {
           teams[1].score++;
+          this.gameState.recordGoal();
           this.lastScoringTeam = 'B';
           this.resetBall();
         } else {

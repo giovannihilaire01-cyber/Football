@@ -98,6 +98,8 @@ setupControls(gameState, gameRules);
 
 let gameRunning = true;
 let lastTime = Date.now();
+let halftimeShown = false;
+let finishShown = false;
 
 const gameLoop = () => {
   requestAnimationFrame(gameLoop);
@@ -106,7 +108,9 @@ const gameLoop = () => {
   const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.016);
   lastTime = currentTime;
 
-  if (gameRunning) {
+  const gameStatus = gameState.getGameStatus();
+
+  if (gameRunning && gameStatus === 'playing') {
     gameState.updateTime(deltaTime);
 
     // Update AI with game rules reference
@@ -152,6 +156,55 @@ const gameLoop = () => {
 
     // Update HUD
     updateHUD(gameState);
+  } else if (gameStatus === 'halftime' && !halftimeShown) {
+    // Show halftime message
+    const overlay = document.createElement('div');
+    overlay.id = 'halftime-overlay';
+    overlay.innerHTML = `
+      <div class="match-message">
+        <h1>HALFTIME</h1>
+        <p>${gameState.getTeams()[0].score} - ${gameState.getTeams()[1].score}</p>
+        <p style="font-size: 12px; margin-top: 10px;">Teams switching sides...</p>
+      </div>
+    `;
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); display: flex; align-items: center;
+      justify-content: center; z-index: 200; font-size: 48px;
+      font-weight: bold; color: #fff; text-align: center;
+    `;
+    document.body.appendChild(overlay);
+    halftimeShown = true;
+
+    // Resume after 3 seconds
+    setTimeout(() => {
+      overlay.remove();
+      gameState.resumeFromHalftime();
+    }, 3000);
+  } else if (gameStatus === 'finished' && !finishShown) {
+    // Show match finish message
+    const teams = gameState.getTeams();
+    const teamAScore = teams[0].score;
+    const teamBScore = teams[1].score;
+    let result = teamAScore > teamBScore ? 'TEAM A WINS!' : teamBScore > teamAScore ? 'TEAM B WINS!' : 'DRAW!';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'finish-overlay';
+    overlay.innerHTML = `
+      <div class="match-message">
+        <h1>FULL TIME</h1>
+        <p>${teamAScore} - ${teamBScore}</p>
+        <p>${result}</p>
+      </div>
+    `;
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9); display: flex; align-items: center;
+      justify-content: center; z-index: 200; font-size: 48px;
+      font-weight: bold; color: #fff; text-align: center;
+    `;
+    document.body.appendChild(overlay);
+    finishShown = true;
   }
 
   renderer.render(scene, camera);
