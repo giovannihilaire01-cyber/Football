@@ -139,20 +139,32 @@ const gameLoop = () => {
     // Update game state from physics
     gameState.updatePositions();
 
-    // 🔴 CRITICAL FIX: Enforce ground constraint and sync meshes
+    // 🔴 CRITICAL FIX: Enforce strict ground constraint and sync meshes
     for (const team of gameState.getTeams()) {
       for (const player of team.players) {
-        // ENFORCE MAXIMUM HEIGHT: Players cannot rise above 2.0 units
-        // (normal standing position is ~0.9, max jump would be ~1.5)
-        if (player.body.position.y > 2.0) {
-          player.body.position.y = 2.0;
-          player.body.velocity.y = 0; // Zero out upward velocity
+        // ENFORCE MAXIMUM HEIGHT: Players cannot rise above 0.5 units
+        // This forces them to stay grounded (standing height ~0.9 when at ground y=0.3)
+        const maxHeight = 0.5;
+        const minHeight = 0.3;
+
+        if (player.body.position.y > maxHeight) {
+          player.body.position.y = maxHeight;
+          // ZERO out upward velocity completely
+          player.body.velocity.y = Math.min(player.body.velocity.y, 0);
         }
 
-        // ENFORCE MINIMUM HEIGHT: Players cannot go below ground (0.3)
-        if (player.body.position.y < 0.3) {
-          player.body.position.y = 0.3;
+        // ENFORCE MINIMUM HEIGHT: Players cannot go below ground
+        if (player.body.position.y < minHeight) {
+          player.body.position.y = minHeight;
+          // Stop all vertical movement when hitting floor
           player.body.velocity.y = 0;
+          // Also reset angular velocity to prevent bouncing
+          player.body.angularVelocity.set(0, 0, 0);
+        }
+
+        // Additional safety: Hard clamp vertical velocity when near ground
+        if (player.body.position.y < 0.4 && player.body.velocity.y < 0) {
+          player.body.velocity.y = 0; // Prevent sinking below ground
         }
 
         // Sync visual mesh with physics body

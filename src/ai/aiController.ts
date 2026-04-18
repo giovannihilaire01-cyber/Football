@@ -10,7 +10,7 @@ export class AIController {
   private gameRules: any;
   private physicsWorld: PhysicsWorld | null = null;
   private maxSpeed = 9.5; // Reduced from 18 m/s (was 64.8 km/h, elite footballers peak at ~10-11 m/s)
-  private maxForce = 100;
+  private maxForce = 60; // Reduced from 100 - realistic human leg force (~50-80N)
   private updateCounter = 0;
   private decisionInterval = 15;
   private playerDecisions: Map<Player, { target: THREE.Vector3; action: string }> = new Map();
@@ -207,41 +207,50 @@ export class AIController {
     if (distanceToTarget > 0.5 && grounded) {
       direction.normalize();
 
-      // Force multiplier based on situation
+      // Force multiplier based on situation - but capped to avoid flying
       let forceMultiplier = 1;
       if (player.hasControl) {
-        forceMultiplier = 1.3; // Dribbling
+        forceMultiplier = 1.1; // Dribbling - reduced from 1.3
       } else if (this.playerDecisions.get(player)?.action === 'defend') {
-        forceMultiplier = 1.5; // Urgent defense
+        forceMultiplier = 1.2; // Urgent defense - reduced from 1.5
       } else if (distanceToTarget < 3) {
         forceMultiplier = 0.5; // Slow down when close
       }
 
-      const force = direction.multiplyScalar(this.maxForce * forceMultiplier);
+      // Cap total force to prevent excessive acceleration
+      const totalForce = Math.min(this.maxForce * forceMultiplier, 80);
+      const force = direction.multiplyScalar(totalForce);
+
       player.body.applyForce(
         new CANNON.Vec3(force.x, 0, force.z),
         player.body.position
       );
     } else {
-      // Light damping near target
-      player.body.velocity.x *= 0.93;
-      player.body.velocity.z *= 0.93;
+      // Light damping near target to slow down smoothly
+      player.body.velocity.x *= 0.92;
+      player.body.velocity.z *= 0.92;
     }
 
-    // CRITICAL: Enforce ground constraint
-    if (grounded) {
-      // When on ground, prevent upward movement and excessive downward velocity
-      if (player.body.velocity.y > 0.1) {
-        // Zero out upward velocity when grounded
-        player.body.velocity.y = 0;
-      } else if (player.body.velocity.y < -0.5) {
-        // Limit downward velocity (gravity will keep accelerating)
-        player.body.velocity.y = -0.5;
-      }
+    // CRITICAL: Enforce ground constraint - NEVER allow upward movement
+    // Players should ALWAYS be grounded during normal AI movement
+    // Any upward velocity is an error that must be corrected immediately
+
+    // Check if player height is dangerously high
+    const isAirborne = player.body.position.y > 0.4;
+
+    if (isAirborne) {
+      // EMERGENCY: Player is flying - stop all vertical velocity immediately
+      player.body.velocity.y = -1; // Force downward to ground
+      player.body.position.y = Math.min(player.body.position.y, 0.4);
     } else {
-      // When in air: apply air resistance to vertical velocity
-      // This prevents players from accumulating infinite vertical velocity
-      player.body.velocity.y *= 0.98; // 2% damping per frame
+      // Normal ground behavior: prevent upward movement completely
+      if (player.body.velocity.y > 0.01) {
+        // Zero out ANY upward velocity when grounded
+        player.body.velocity.y = 0;
+      } else if (player.body.velocity.y < -2) {
+        // Cap downward velocity to prevent excessive force
+        player.body.velocity.y = -2;
+      }
     }
 
     // Speed limit
@@ -276,7 +285,7 @@ export class AIController {
 
   private avoidCollisions(player: Player, allTeams: Team[]): void {
     const avoidanceRadius = 2.5;
-    const avoidanceForce = 30; // Reduced from 120 for realistic movement
+    const avoidanceForce = 15; // Reduced from 30 - gentle repulsion to avoid flying
 
     for (const team of allTeams) {
       for (const other of team.players) {
@@ -284,7 +293,7 @@ export class AIController {
 
         const separation = new THREE.Vector3(
           player.position.x - other.position.x,
-          0,
+          0, // CRITICAL: Only horizontal separation, never vertical
           player.position.z - other.position.z
         );
 
@@ -293,6 +302,7 @@ export class AIController {
         if (distance < avoidanceRadius && distance > 0.1) {
           separation.normalize();
           separation.multiplyScalar(avoidanceForce);
+          // Apply force ONLY horizontally, never vertically
           player.body.applyForce(
             new CANNON.Vec3(separation.x, 0, separation.z),
             player.body.position

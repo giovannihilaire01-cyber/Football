@@ -61,45 +61,52 @@ export class PhysicsWorld {
   }
 
   isGrounded(player: Player): boolean {
-    // Multi-point raycast for robust ground detection
-    // Uses 8 rays in circle pattern around player base
+    // CRITICAL: Very strict ground detection to prevent flying
+    // Position-based check: Player must be at or near ground level
+    const playerHeight = player.body.position.y;
+    const minGroundHeight = 0.3; // Minimum valid player height
+    const maxGroundHeight = 0.4; // Max height for foot contact on ground
+
+    // If player is above valid ground height, definitely not grounded
+    if (playerHeight > maxGroundHeight) {
+      return false;
+    }
+
+    // Multi-point raycast for additional confirmation
+    // Uses 5 rays directly below player
     const rayPoints = [
       [0, 0],       // Center
-      [0.25, 0],    // Right
-      [-0.25, 0],   // Left
-      [0, 0.25],    // Forward
-      [0, -0.25],   // Back
-      [0.17, 0.17], // Diagonal 1
-      [-0.17, 0.17], // Diagonal 2
-      [0.17, -0.17], // Diagonal 3
-      [-0.17, -0.17], // Diagonal 4
+      [0.15, 0],    // Right
+      [-0.15, 0],   // Left
+      [0, 0.15],    // Forward
+      [0, -0.15],   // Back
     ];
 
     let groundCount = 0;
-    const groundThreshold = 2; // Need at least 2 rays hitting ground (more lenient)
+    const groundThreshold = 2; // Need at least 2 rays hitting ground
 
     for (const [offsetX, offsetZ] of rayPoints) {
       const rayResult = new CANNON.RaycastResult();
       const from = new CANNON.Vec3(
         player.body.position.x + offsetX,
-        player.body.position.y,
+        player.body.position.y + 0.05, // Cast from slightly above
         player.body.position.z + offsetZ
       );
       const to = new CANNON.Vec3(
         player.body.position.x + offsetX,
-        player.body.position.y - 0.8, // Cast down 0.8 unit
+        player.body.position.y - 0.5, // Cast down 0.5 units
         player.body.position.z + offsetZ
       );
 
       this.world.raycastClosest(from, to, {}, rayResult);
 
-      // Ground detected if ray hits within 0.8 units
-      if (rayResult.hasHit && rayResult.distance < 0.8) {
+      // Ground detected if ray hits within reasonable distance
+      if (rayResult.hasHit && rayResult.distance < 0.4) {
         groundCount++;
       }
     }
 
-    // Player is grounded if at least 2 rays hit ground (foot contact)
+    // Player is grounded if raycast confirms it
     return groundCount >= groundThreshold;
   }
 

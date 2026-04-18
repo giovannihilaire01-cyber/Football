@@ -31,9 +31,9 @@ export function createPlayer(number: number, team: string, x: number, z: number,
   const body = new CANNON.Body({
     mass: 75,
     shape: shape,
-    linearDamping: 0.15, // Reduced from 0.8 (was 8x too high)
-    angularDamping: 0.4, // Reduced from 0.9 (was 2x too high)
-    friction: 0.8,
+    linearDamping: 0.3, // Increased from 0.15 - more friction for stability
+    angularDamping: 0.8, // Increased from 0.4 - prevent spinning and bouncing
+    friction: 0.9, // Increased from 0.8 - more grip on ground
   });
   // Position body center slightly higher to account for sphere radius
   body.position.set(x, 0.95, z);
